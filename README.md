@@ -2,6 +2,7 @@
 
 这是一个部署在 **Cloudflare Workers** 上的文件直链加速服务。它可以将 Google Drive 和 Dropbox 的分享链接转换为高速、不经过本地流量的代理下载链接，有效解决部分地区下载速度慢或无法下载的问题。
 
+
 ![项目用户界面截图](./assets/screenshot.webp)
 
 ## ✨ 功能特性
