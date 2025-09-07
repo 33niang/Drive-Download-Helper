@@ -1,1 +1,69 @@
-FileBridge - Cloudflare 网盘文件加速代理FileBridge 是一个部署在 Cloudflare Workers 上的高性能反向代理脚本。它旨在帮助位于中国大陆等网络受限地区的用户，高速、免代理地下载 Google Drive 和 Dropbox 上的分享文件。✨ 功能特性全面支持: 完美处理 Google Drive (包括大文件病毒扫描页面) 和 Dropbox 的分享链接。高速下载: 基于 Cloudflare 的全球 CDN 网络，自动选择最优线路，下载速度快而稳定。杜绝泄露: 强制代理所有流量，通过重写所有跳转和页面链接，确保用户的浏览器始终在代理环境内，永不“泄露”原始地址。智能绕过: 自动处理并伪造 Referer 请求头，绕过目标服务器的防盗链检查。免费部署: 完全基于 Cloudflare 的无服务器架构，享受 generous 的免费套餐，零成本运维。美观易用: 拥有一个现代、美观、响应式的前端界面，支持明暗两种主题模式。🚀 部署指南部署本项目到你自己的 Cloudflare 账户仅需几分钟。登录 Cloudflare:打开 Cloudflare 控制台 并登录。创建 Worker:在左侧菜单中，找到并点击 Workers & Pages。点击 创建应用程序 (Create Application) > 创建 Worker (Create Worker)。配置并部署:为你的 Worker 设置一个你喜欢的子域名 (例如 my-file-proxy)。点击 部署 (Deploy)。粘贴代码:部署完成后，点击 编辑代码 (Edit code)。将本项目中的 index.js 文件里的全部代码，完整地复制并粘贴到 Cloudflare 的在线编辑器中，覆盖掉原有的模板代码。保存并完成:点击 保存并部署 (Save and deploy)。至此，你的文件加速代理服务已经成功上线！你可以通过 https://<你的子域名>.workers.dev 来访问它。🔬 工作原理本脚本的核心是一个智能的反向代理，它解决了四个关键挑战：处理交互页面: 自动识别并处理 Google Drive 的大文件“病毒扫描警告”页面，模拟用户点击确认。捕获并改写重定向: 通过 redirect: 'manual' 捕获所有 HTTP 3xx 跳转指令，将 Location 头中的目标域名改写为我们自己的 Worker 域名，防止代理“泄露”。动态重写页面内容: 在将 HTML 页面返回给用户前，扫描并替换页面中所有的 href, src, action 链接，确保所有后续请求都被发回代理 Worker。伪造请求来源: 在向目标服务器（如 Google）发送请求时，强制修改 Referer 请求头，欺骗服务器这是一个合法的站内请求，从而绕过防盗链机制。通过这套组合策略，FileBridge 能够将一个复杂、多步、且有安全限制的下载流程，转化为对最终用户透明、流畅的“一键下载”体验。📝 许可协议
+# 极速文件链接 (File Link Accelerator)
+
+这是一个部署在 **Cloudflare Workers** 上的文件直链加速服务。它可以将 Google Drive 和 Dropbox 的分享链接转换为高速、不经过本地流量的代理下载链接，有效解决部分地区下载速度慢或无法下载的问题。
+
+## ✨ 功能特性
+
+  - **高速代理**: 利用 Cloudflare 的全球网络为文件下载提供加速。
+  - **支持主流网盘**: 完美支持 Google Drive 和 Dropbox 的文件分享链接。
+  - **智能处理**:
+      - **Google Drive**: 自动处理病毒扫描警告页面、登录授权页面和多重跳转，确保所有流量都通过 Worker 代理，防止 IP 泄露。
+      - **Dropbox**: 自动将分享链接转换为强制下载链接 (`dl=1`)。
+  - **安全可靠**: 通过白名单机制 (`ALLOWED_HOSTS`) 限制只代理指定的域名，防止被滥用。
+  - **一键部署**: 无需服务器，代码复制粘贴到 Cloudflare Workers 即可上线。
+  - **现代化前端**: 简洁美观的 UI 界面，支持浅色/深色模式自动切换，适配移动设备。
+
+## 🚀 工作原理
+
+此 Worker 的核心原理是作为中间代理。当你访问 `https://your-worker.workers.dev/https://drive.google.com/file/d/xxx/view` 时：
+
+1.  **拦截请求**: Cloudflare Worker 获取路径中的目标文件链接 (`https://drive.google.com/...`)。
+2.  **验证域名**: Worker 检查目标链接的域名是否在 `ALLOWED_HOSTS` 允许列表中。
+3.  **后端请求**: Worker 模仿浏览器向原始文件地址（如 Google Drive）发起请求。
+4.  **处理重定向**: 当 Google Drive 或 Dropbox 返回一个重定向指令（HTTP 302/307）时，Worker 会捕获这个指令，并将重定向的 `Location` 地址重写为经过 Worker 代理的新地址，然后返回给用户浏览器。
+5.  **处理页面内容**: 如果 Google Drive 返回一个 HTML 页面（如病毒扫描警告），Worker 会解析页面内容，将页面中所有的链接（如 "Download anyway" 按钮）都重写为经过 Worker 代理的地址。
+6.  **传输文件**: 最终，当获取到真实的文件流时，Worker 将其直接传输给用户，实现代理下载。
+
+通过这种方式，用户的整个下载过程始终与 Cloudflare 节点交互，从而实现了加速和跨区域访问的目的。
+
+## 🛠️ 部署指南
+
+部署过程非常简单，只需要一个 Cloudflare 账户即可。
+
+1.  **登录 Cloudflare**: 打开你的 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
+2.  **进入 Workers**: 在左侧菜单中，选择 `Workers & Pages`。
+3.  **创建服务**: 点击 `Create application` -\> `Create Worker`。
+4.  **命名服务**: 为你的 Worker 指定一个你喜欢的子域名（例如 `my-file-proxy`），然后点击 `Deploy`。
+5.  **编辑代码**: 点击 `Edit code`，将仓库中 `index.js` 的 **全部代码** 复制粘贴到在线编辑器中，覆盖原有的示例代码。
+6.  **配置 (可选)**: 你可以根据需要修改代码顶部的 `用户配置区域`。
+    ```javascript
+    // == 用户配置区域开始 ==
+
+    // 版本号 (会显示在页面页脚)
+    const SCRIPT_VERSION = 'v1.0.1';
+
+    // 允许代理的域名列表
+    const ALLOWED_HOSTS = [
+      'drive.google.com',
+      'www.dropbox.com',
+      'drive.usercontent.google.com',
+      'accounts.google.com',
+      'dl.dropboxusercontent.com',
+    ];
+
+    // == 用户配置区域结束 ==
+    ```
+7.  **保存并部署**: 点击右上角的 `Save and deploy` 按钮。
+
+完成！现在你可以访问 `https://<你的Worker名称>.<你的子域>.workers.dev` 来使用你的文件加速服务了。
+
+## 📝 使用方法
+
+1.  打开你部署好的 Worker 服务地址。
+2.  将 Google Drive 或 Dropbox 的分享链接粘贴到输入框中。
+3.  点击 **"生成链接"** 按钮。
+4.  生成的代理链接会显示在下方，你可以 **"复制链接"** 或直接点击 **"立即下载"**。
+
+## 📜 开源许可
+
+本项目采用 [MIT License](https://www.google.com/search?q=./LICENSE) 开源。
