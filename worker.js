@@ -60,18 +60,18 @@ const HOMEPAGE_HTML = `
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .glow-shadow {
-       box-shadow: 0 0 15px rgba(128, 90, 213, 0.4), 0 0 30px rgba(128, 90, 213, 0.3), 0 0 45px rgba(128, 90, 213, 0.2);
+      box-shadow: 0 0 15px rgba(128, 90, 213, 0.4), 0 0 30px rgba(128, 90, 213, 0.3), 0 0 45px rgba(128, 90, 213, 0.2);
     }
     .title-gradient {
-        background-image: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+      background-image: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
     }
     .btn-gradient {
-        background-image: linear-gradient(to right, #8b5cf6 0%, #ec4899 51%, #8b5cf6 100%);
-        background-size: 200% auto;
-        transition: 0.5s;
+      background-image: linear-gradient(to right, #8b5cf6 0%, #ec4899 51%, #8b5cf6 100%);
+      background-size: 200% auto;
+      transition: 0.5s;
     }
     .btn-gradient:hover {
-        background-position: right center;
+      background-position: right center;
     }
     .toast {
       opacity: 0;
@@ -91,8 +91,8 @@ const HOMEPAGE_HTML = `
   </button>
   <div class="w-full max-w-4xl p-8 md:p-12 space-y-8 rounded-2xl glass-container glow-shadow">
     <div class="text-center">
-        <h1 class="text-5xl md:text-7xl font-black text-transparent bg-clip-text title-gradient mb-4">极速文件链接</h1>
-        <p class="text-lg text-gray-800 dark:text-gray-300">粘贴 Google Drive 或 Dropbox 分享链接，生成永不泄露的代理下载地址。</p>
+      <h1 class="text-5xl md:text-7xl font-black text-transparent bg-clip-text title-gradient mb-4">极速文件链接</h1>
+      <p class="text-lg text-gray-800 dark:text-gray-300">粘贴 Google Drive 或 Dropbox 分享链接，生成永不泄露的代理下载地址。</p>
     </div>
     <div class="flex flex-col sm:flex-row gap-4">
       <input id="source-url" type="text" placeholder="请在此处粘贴分享链接..." class="flex-grow p-4 border-2 border-transparent rounded-lg focus:outline-none focus:ring-4 focus:ring-purple-500/50 bg-white/50 dark:bg-black/20 text-gray-900 dark:text-white transition-all">
@@ -105,13 +105,6 @@ const HOMEPAGE_HTML = `
         <a id="download-btn" href="#" target="_blank" class="w-full text-center btn-gradient text-white font-bold py-3 rounded-lg uppercase tracking-wider transform hover:scale-105">⚡ 立即下载</a>
       </div>
     </div>
-    <footer class="pt-8 text-center text-sm text-gray-700 dark:text-gray-400">
-      <p>Version: v1.0 | Crafted by sansan</p>
-      <div class="mt-2 space-x-4">
-        <a href="https://zhou.su" target="_blank" class="hover:text-gray-900 dark:hover:text-white transition-colors">主页导航</a>
-        <a href="https://status.zhou.su" target="_blank" class="hover:text-gray-900 dark:hover:text-white transition-colors">页面状态</a>
-      </div>
-    </footer>
   </div>
   <div id="toast" class="toast fixed bottom-5 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg text-white font-semibold"></div>
   <script>
@@ -178,78 +171,78 @@ const HOMEPAGE_HTML = `
  * @returns {Promise<Response>}
  */
 async function handleGoogleDrive(targetUrl, request, workerOrigin) {
-    const upstreamHeaders = new Headers(request.headers);
-    upstreamHeaders.set('Host', targetUrl.hostname);
-    // 关键：对所有发往 Google 的请求都伪造 Referer，以通过防盗链检查。
-    upstreamHeaders.set('Referer', 'https://drive.google.com/');
+  const upstreamHeaders = new Headers(request.headers);
+  upstreamHeaders.set('Host', targetUrl.hostname);
+  // 关键：对所有发往 Google 的请求都伪造 Referer，以通过防盗链检查。
+  upstreamHeaders.set('Referer', 'https://drive.google.com/');
 
-    // 核心原则：始终手动处理重定向，捕获所有跳转指令。
-    const response = await fetch(targetUrl.toString(), {
-        method: request.method,
-        headers: upstreamHeaders,
-        redirect: 'manual', // 强制手动模式，绝不自动跟随。
-        body: request.body
+  // 核心原则：始终手动处理重定向，捕获所有跳转指令。
+  const response = await fetch(targetUrl.toString(), {
+    method: request.method,
+    headers: upstreamHeaders,
+    redirect: 'manual', // 强制手动模式，绝不自动跟随。
+    body: request.body
+  });
+
+  const responseHeaders = new Headers(response.headers);
+
+  // 关键步骤：检查是否收到了跳转指令 (3xx 状态码 + Location 头)。
+  if (response.status >= 300 && response.status < 400 && responseHeaders.has('Location')) {
+    const location = responseHeaders.get('Location');
+    // 将 Google 的跳转地址构造成一个完整的 URL。
+    const newLocationUrl = new URL(location, targetUrl.toString());
+    // 将这个 URL 改写，让浏览器向我们的 Worker 发起下一次请求。
+    const newLocation = `${workerOrigin}/${newLocationUrl.toString()}`;
+    responseHeaders.set('Location', newLocation);
+
+    // 返回这个被我们修改过的跳转响应给浏览器。
+    return new Response(null, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+    });
+  }
+
+  // 如果收到的内容是 HTML (例如病毒警告页面)，则需要改写页面内部的所有链接。
+  const contentType = responseHeaders.get('Content-Type') || '';
+  if (contentType.includes('text/html')) {
+    let body = await response.text();
+
+    const rewriteUrl = (originalUrl) => `${workerOrigin}/${originalUrl}`;
+
+    // 全面替换页面内的 action, src, href 属性中的绝对和相对链接。
+    body = body.replace(/(action|src|href)="https?:\/\/([^"]+)"/g, (match, attr, url) => {
+      const fullUrl = 'https://' + url;
+      try {
+        const hostname = new URL(fullUrl).hostname;
+        const isAllowed = ALLOWED_HOSTS.some(allowedHost =>
+          hostname === allowedHost || hostname.endsWith('.' + allowedHost)
+        );
+        if (isAllowed) {
+          return `${attr}="${rewriteUrl(fullUrl)}"`;
+        }
+      } catch (e) { /* 无效URL，忽略 */ }
+      return match;
+    });
+    body = body.replace(/(action|src|href)="\/([^"/][^"]*)"/g, (match, attr, path) => {
+      return `${attr}="${rewriteUrl(targetUrl.origin + '/' + path)}"`;
     });
 
-    const responseHeaders = new Headers(response.headers);
+    // 删除 Google 的安全策略头，否则它会阻止我们的改写生效。
+    responseHeaders.delete('Content-Security-Policy');
 
-    // 关键步骤：检查是否收到了跳转指令 (3xx 状态码 + Location 头)。
-    if (response.status >= 300 && response.status < 400 && responseHeaders.has('Location')) {
-        const location = responseHeaders.get('Location');
-        // 将 Google 的跳转地址构造成一个完整的 URL。
-        const newLocationUrl = new URL(location, targetUrl.toString());
-        // 将这个 URL 改写，让浏览器向我们的 Worker 发起下一次请求。
-        const newLocation = `${workerOrigin}/${newLocationUrl.toString()}`;
-        responseHeaders.set('Location', newLocation);
-
-        // 返回这个被我们修改过的跳转响应给浏览器。
-        return new Response(null, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: responseHeaders,
-        });
-    }
-
-    // 如果收到的内容是 HTML (例如病毒警告页面)，则需要改写页面内部的所有链接。
-    const contentType = responseHeaders.get('Content-Type') || '';
-    if (contentType.includes('text/html')) {
-        let body = await response.text();
-
-        const rewriteUrl = (originalUrl) => `${workerOrigin}/${originalUrl}`;
-
-        // 全面替换页面内的 action, src, href 属性中的绝对和相对链接。
-        body = body.replace(/(action|src|href)="https?:\/\/([^"]+)"/g, (match, attr, url) => {
-            const fullUrl = 'https://' + url;
-            try {
-                const hostname = new URL(fullUrl).hostname;
-                const isAllowed = ALLOWED_HOSTS.some(allowedHost => 
-                    hostname === allowedHost || hostname.endsWith('.' + allowedHost)
-                );
-                if (isAllowed) {
-                    return `${attr}="${rewriteUrl(fullUrl)}"`;
-                }
-            } catch (e) { /* 无效URL，忽略 */ }
-            return match;
-        });
-         body = body.replace(/(action|src|href)="\/([^"/][^"]*)"/g, (match, attr, path) => {
-             return `${attr}="${rewriteUrl(targetUrl.origin + '/' + path)}"`;
-        });
-
-        // 删除 Google 的安全策略头，否则它会阻止我们的改写生效。
-        responseHeaders.delete('Content-Security-Policy');
-
-        return new Response(body, {
-            status: response.status,
-            headers: responseHeaders,
-        });
-    }
-
-    // 如果既不是跳转，也不是 HTML (那就是最终的文件流)，则直接返回给用户。
-    return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
+    return new Response(body, {
+      status: response.status,
+      headers: responseHeaders,
     });
+  }
+
+  // 如果既不是跳转，也不是 HTML (那就是最终的文件流)，则直接返回给用户。
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
 }
 
 /**
@@ -260,74 +253,73 @@ async function handleGoogleDrive(targetUrl, request, workerOrigin) {
  * @returns {Promise<Response>}
  */
 async function simpleProxy(targetUrl, request, workerOrigin) {
-    if (targetUrl.hostname === 'www.dropbox.com') {
-        targetUrl.searchParams.set('dl', '1');
-    }
+  if (targetUrl.hostname === 'www.dropbox.com') {
+    targetUrl.searchParams.set('dl', '1');
+  }
 
-    const response = await fetch(targetUrl.toString(), {
-        method: request.method,
-        headers: request.headers,
-        body: request.body,
-        redirect: 'manual'
-    });
+  const response = await fetch(targetUrl.toString(), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    redirect: 'manual'
+  });
 
-    const responseHeaders = new Headers(response.headers);
-    
-    if (response.status >= 300 && response.status < 400 && responseHeaders.has('Location')) {
-        const location = responseHeaders.get('Location');
-        const newLocationUrl = new URL(location, targetUrl.toString()); 
-        const newLocation = `${workerOrigin}/${newLocationUrl.toString()}`;
-        responseHeaders.set('Location', newLocation);
-    }
+  const responseHeaders = new Headers(response.headers);
+  
+  if (response.status >= 300 && response.status < 400 && responseHeaders.has('Location')) {
+    const location = responseHeaders.get('Location');
+    const newLocationUrl = new URL(location, targetUrl.toString());
+    const newLocation = `${workerOrigin}/${newLocationUrl.toString()}`;
+    responseHeaders.set('Location', newLocation);
+  }
 
-    return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-    });
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
 }
 
 export default {
-    async fetch(request) {
-        const url = new URL(request.url);
-        const workerOrigin = url.origin;
+  async fetch(request) {
+    const url = new URL(request.url);
+    const workerOrigin = url.origin;
 
-        if (url.pathname === '/') {
-            return new Response(HOMEPAGE_HTML, {
-                headers: { 'Content-Type': 'text/html; charset=utf-8' },
-            });
-        }
+    if (url.pathname === '/') {
+      return new Response(HOMEPAGE_HTML, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
 
-        try {
-            const decodedPath = decodeURIComponent(url.pathname);
-            const targetUrlStr = (decodedPath.substring(1) + url.search).trim();
-            
-            let targetUrl;
-            try {
-                targetUrl = new URL(targetUrlStr.startsWith('http') ? targetUrlStr : 'https://' + targetUrlStr);
-            } catch (e) {
-                return new Response('无效的目标链接格式。', { status: 400 });
-            }
+    try {
+      const decodedPath = decodeURIComponent(url.pathname);
+      const targetUrlStr = (decodedPath.substring(1) + url.search).trim();
+      
+      let targetUrl;
+      try {
+        targetUrl = new URL(targetUrlStr.startsWith('http') ? targetUrlStr : 'https://' + targetUrlStr);
+      } catch (e) {
+        return new Response('无效的目标链接格式。', { status: 400 });
+      }
 
-            const isAllowed = ALLOWED_HOSTS.some(allowedHost => 
-                targetUrl.hostname === allowedHost || targetUrl.hostname.endsWith('.' + allowedHost)
-            );
+      const isAllowed = ALLOWED_HOSTS.some(allowedHost =>
+        targetUrl.hostname === allowedHost || targetUrl.hostname.endsWith('.' + allowedHost)
+      );
 
-            if (!isAllowed) {
-                return new Response(`错误：域名 ${targetUrl.hostname} 不在允许列表中。`, { status: 403 });
-            }
+      if (!isAllowed) {
+        return new Response(`错误：域名 ${targetUrl.hostname} 不在允许列表中。`, { status: 403 });
+      }
 
-            // 路由判断
-            if (targetUrl.hostname.includes('google.com')) {
-                return await handleGoogleDrive(targetUrl, request, workerOrigin);
-            } else {
-                return await simpleProxy(targetUrl, request, workerOrigin);
-            }
+      // 路由判断
+      if (targetUrl.hostname.includes('google.com')) {
+        return await handleGoogleDrive(targetUrl, request, workerOrigin);
+      } else {
+        return await simpleProxy(targetUrl, request, workerOrigin);
+      }
 
-        } catch (error) {
-            console.error('Fetch error:', error);
-            return new Response(`处理请求时发生错误: ${error.message}`, { status: 502 });
-        }
-    },
+    } catch (error) {
+      console.error('Fetch error:', error);
+      return new Response(`处理请求时发生错误: ${error.message}`, { status: 502 });
+    }
+  },
 };
-
